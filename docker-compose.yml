@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+
+  db:
+    image: mysql:5.7
+    container_name: gutenberg-plugin-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE_NAME}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: 'root'
+    volumes:
+      - ./db:/var/lib/mysql
+    
+  
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: gutenberg-plugin-pma
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+
+
+  wordpress:
+    container_name: gutenberg-plugin-wp-test
+    build: .
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - ${WORDPRESS_PORT}:80
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE_NAME}
+    volumes:
+      - ./:/var/www/html/wp-content/plugins/gutenberg-plugin
+
+  wpcli:
+    container_name: gutenberg-plugin-wpcli
+    image: wordpress:cli
+    depends_on:
+      - wordpress
+      - db
+    volumes_from:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE_NAME}
+      WORDPRESS_HOST: ${WORDPRESS_HOST}
+      WORDPRESS_PORT: ${WORDPRESS_PORT}
+    user: xfs  
+    command: 
+      - sh
+      - -c
+      - |
+        wp core install  --url=$${WORDPRESS_HOST}:$${WORDPRESS_PORT} --title=GutenbergBlockTest --admin_user=admin --admin_password=admin --admin_email=test@test.com --skip-email
+        wp plugin delete hello
+        wp plugin delete akismet
+        wp plugin activate --all
+        echo "Access wordpress on http://$${WORDPRESS_HOST}:$${WORDPRESS_PORT}/wp-login.php with user 'admin' and password 'admin'"
